@@ -1,79 +1,79 @@
 # HelixPack
 
-HelixPack 是长 DNA 序列建模项目，核心方法 VeriComp 是一个压缩式 Transformer/MoE 模型。模型先通过浅层 Mamba2 编码器提取高分辨率特征，再使用长度自适应配额压缩器将序列压缩到瓶颈表示，最后由 Transformer/MoE 瓶颈主干网络处理压缩表示。
+HelixPack is a long-DNA-sequence modeling project. Its core method, VeriComp, is a compression-based Transformer/MoE model. A shallow Mamba2 encoder first extracts high-resolution features, a length-adaptive quota compressor then squeezes the sequence into a bottleneck representation, and a Transformer/MoE bottleneck backbone processes the compressed representation.
 
-默认模型约 1 亿参数，核心配置为 12 层 Transformer、512 维隐藏层、8 个注意力头、16 个 MoE 专家、Top-2 路由，以及最多 4096 个瓶颈 token。
+The default model has about 100M parameters, with 12 Transformer layers, a 512-dim hidden size, 8 attention heads, 16 MoE experts with Top-2 routing, and up to 4096 bottleneck tokens.
 
-## 核心机制
+## Core Mechanisms
 
-1. **长度自适应压缩**：压缩 token 数由 `N(L)=min(L,4096)` 决定，短序列保持逐位置表示，长序列自动进入压缩模式。
-2. **内容感知的配额路由**：边界感知路由器根据相邻上下文变化分配配额，并严格保持总压缩预算不变。
-3. **稀疏且可逆的压缩映射**：采用三邻域稀疏配额聚合和双动态逆分配，避免超长输入上的稠密 `[B,N,L]` 内存开销。
-4. **双链协同压缩**：正链和反向互补链分别提出压缩建议，在统一坐标系中共同决定最终配额。
-5. **压缩主干与解码特征解耦**：下游任务可以选择压缩后的瓶颈特征、解码器特征或逐碱基特征。
+1. **Length-adaptive compression**: the number of compressed tokens is determined by `N(L)=min(L,4096)`. Short sequences keep per-position representations, while long sequences automatically switch to compressed mode.
+2. **Content-aware quota routing**: a boundary-aware router allocates quotas according to changes in neighboring context while strictly preserving the total compression budget.
+3. **Sparse and invertible compression mapping**: a three-neighborhood sparse quota aggregation together with a dual dynamic inverse allocation avoids the dense `[B,N,L]` memory cost on very long inputs.
+4. **Dual-strand cooperative compression**: the forward and reverse-complement strands propose compression candidates separately, and the final quotas are decided jointly in a unified coordinate system.
+5. **Decoupled compressed backbone and decoded features**: downstream tasks can choose the compressed bottleneck features, decoder features, or per-base features.
 
-| 输入长度 | 瓶颈 token 数 | 压缩倍数 | 工作模式 |
+| Input length | Bottleneck tokens | Compression ratio | Mode |
 |---:|---:|---:|---|
-| 4,096 | 4,096 | 1 倍 | 不压缩 |
-| 32,768 | 4,096 | 8 倍 | 自适应压缩 |
-| 131,072 | 4,096 | 32 倍 | 自适应压缩 |
-| 1,048,576 | 4,096 | 256 倍 | 长序列推理 |
+| 4,096 | 4,096 | 1x | No compression |
+| 32,768 | 4,096 | 8x | Adaptive compression |
+| 131,072 | 4,096 | 32x | Adaptive compression |
+| 1,048,576 | 4,096 | 256x | Long-sequence inference |
 
-## 目录结构
+## Repository Layout
 
 ```
 HelixPack/
-├── vericomp/     # 模型定义与数据管线（modeling.py 为核心模型文件）
-├── pretrain/     # 预训练代码与启动脚本
-├── finetune/     # 下游任务微调代码与启动脚本
-└── tools/        # 数据下载与结果汇总脚本
+├── vericomp/     # Model definitions and data pipeline (modeling.py is the core model)
+├── pretrain/     # Pretraining code and launch scripts
+├── finetune/     # Downstream finetuning code and launch scripts
+└── tools/        # Data download and result aggregation scripts
 ```
 
-主要文件说明：
+Key files:
 
-- `vericomp/modeling.py`，VeriComp 模型主体，包含压缩器、双链机制与 MoE 主干
-- `vericomp/config.py`，模型配置
-- `vericomp/model_presets.py`，预设模型规模
-- `vericomp/data.py`，MLM 预训练数据集与采样器
-- `pretrain/train.py`，混合长度 MLM 预训练主入口
-- `pretrain/train_long_context.py`，长上下文续训
-- `pretrain/next_token.py`，下一 token 预测目标
-- `pretrain/multitask_mlm_genomic.py`、`pretrain/multitask_mlm_tisp.py`，带辅助基因组任务的多任务 MLM
-- `pretrain/eval_checkpoints.py`、`pretrain/evaluate_long_context.py`、`pretrain/verify.py`，评估与校验
-- `finetune/<TASK>/`，eQTL、ETGP、CMP、TISP、NT、GB 六个下游任务的微调代码，`<TASK>.py` 为主入口，`start_<task>.sh` 为启动脚本，`external_*.py` 为基线模型对照实现
+- `vericomp/modeling.py`: the VeriComp model, including the compressor, dual-strand mechanism, and MoE backbone
+- `vericomp/config.py`: model configuration
+- `vericomp/model_presets.py`: preset model sizes
+- `vericomp/data.py`: MLM pretraining dataset and samplers
+- `pretrain/train.py`: main entry point for mixed-length MLM pretraining
+- `pretrain/train_long_context.py`: long-context continued pretraining
+- `pretrain/next_token.py`: next-token prediction objective
+- `pretrain/multitask_mlm_genomic.py`, `pretrain/multitask_mlm_tisp.py`: multitask MLM with auxiliary genomic tasks
+- `pretrain/eval_checkpoints.py`, `pretrain/evaluate_long_context.py`, `pretrain/verify.py`: evaluation and verification
+- `finetune/<TASK>/`: finetuning code for the six downstream tasks (eQTL, ETGP, CMP, TISP, NT, GB); `<TASK>.py` is the main entry point, `start_<task>.sh` is the launch script, and `external_*.py` contains baseline implementations
 
-## 环境与依赖
+## Environment and Dependencies
 
-项目在 PyTorch 2.8、CUDA 12.8 下开发，需要 CUDA 与 BF16 支持，Mamba2 依赖 `mamba_ssm`。主要第三方依赖为 `torch`、`mamba_ssm`、`transformers`、`datasets`、`huggingface_hub`、`numpy`。
+The project is developed with PyTorch 2.8 and CUDA 12.8, and requires CUDA with BF16 support. Mamba2 depends on `mamba_ssm`. The main third-party dependencies are `torch`, `mamba_ssm`, `transformers`, `datasets`, `huggingface_hub`, and `numpy`.
 
-## 预训练
+## Pretraining
 
-`pretrain/start_train.sh` 是混合长度 MLM 预训练入口，默认覆盖 1K 至 131K 的长度桶，每个全局 batch 内保持长度一致。所有超参数均可用环境变量覆盖：
+`pretrain/start_train.sh` is the entry point for mixed-length MLM pretraining. By default it covers length buckets from 1K to 131K, and every global batch is length-homogeneous. All hyperparameters can be overridden through environment variables:
 
 ```bash
 CUDA_DEVICES=0,1,2,3 bash pretrain/start_train.sh
 ```
 
-其他入口：
+Other entry points:
 
 ```bash
-bash pretrain/start_next_token.sh       # 下一 token 预测
-bash pretrain/start_long_context.sh     # 128K 长上下文续训
-bash pretrain/start_train_1b.sh         # 1B 规模预训练
+bash pretrain/start_next_token.sh       # Next-token prediction
+bash pretrain/start_long_context.sh     # 128K long-context continued pretraining
+bash pretrain/start_train_1b.sh         # 1B-scale pretraining
 ```
 
-## 数据
+## Data
 
-预训练数据为 hg38 参考基因组的片段掩码流程，配置见 `pretrain/train.py` 的命令行参数。下游基准数据通过脚本下载：
+Pretraining data uses a masked-fragment pipeline over the hg38 reference genome; see the command-line arguments of `pretrain/train.py` for the configuration. Downstream benchmark data is downloaded with:
 
 ```bash
-python tools/download_dnalongbench.py --tasks etgp cmp tisp    # 下载到 data/dnalongbench/
-python tools/download_benchmark_data.py --tasks nt gb          # 下载到 data/benchmark/
+python tools/download_dnalongbench.py --tasks etgp cmp tisp    # Downloads to data/dnalongbench/
+python tools/download_benchmark_data.py --tasks nt gb          # Downloads to data/benchmark/
 ```
 
-## 下游微调
+## Downstream Finetuning
 
-每个任务一个目录，加载预训练检查点后默认全参微调，定期验证与测试，保存 `best.pt`、`last.pt` 与 `metrics.json`。启动示例：
+Each task lives in its own directory. After loading a pretrained checkpoint, the default setting is full-parameter finetuning with periodic validation and testing, saving `best.pt`, `last.pt`, and `metrics.json`. Launch examples:
 
 ```bash
 CHECKPOINT=/path/to/checkpoint.pt \
@@ -83,7 +83,7 @@ CHECKPOINT=/path/to/checkpoint.pt \
   bash finetune/GB/start_gb.sh
 
 CHECKPOINT=/path/to/checkpoint.pt \
-  DATASET=eqtl \
+  CELL_TYPE=Artery_Tibial \
   bash finetune/eQTL/start_eqtl.sh
 
 CHECKPOINT=/path/to/checkpoint.pt \
@@ -97,4 +97,6 @@ CHECKPOINT=/path/to/checkpoint.pt \
   bash finetune/CMP/start_cmp.sh
 ```
 
-各任务支持的模型特征与指标见 `finetune/README.md`。基线模型（NTv3、HyenaDNA、Caduceus、JanusDNA、Evo2 等）的评测实现位于各任务的 `external_*.py` 与基线同名文件。
+Evaluation protocol: NT and GB use 5-fold cross-validation (`FOLD` in 0-4, `NUM_FOLDS` defaults to 5); the other tasks (eQTL, ETGP, CMP, TISP) repeat training over three seeds by default (`SEEDS="1 2 3"`, overridable).
+
+Supported model features and metrics for each task are listed in `finetune/README.md`. Baseline evaluation code (NTv3, HyenaDNA, Caduceus, JanusDNA, Evo2, etc.) lives in each task's `external_*.py` files and the same-named baseline files.

@@ -1,0 +1,55 @@
+{
+  "name": "vericomp-uniform-30k-scratch",
+  "description": "Equal-quota (uniform) compression arm trained from scratch for 30k updates. Hyperparameters are copied from the 20260813/vericomp-128k run (24,414 updates, 4 GPUs, lr 3e-4, warmup 1000, wd 0.01, grad-clip 2.0, 98.5M params, 8 length buckets up to 131072). The only deliberate changes are total_updates 24414 -> 30000 and allocation_mode dynamic -> uniform, so the arm is a like-for-like control for the HelixPack (dynamic) arm rather than a continuation of it.",
+  "provenance": {
+    "reference_run": "runs/logs/pretrain/20260813/train-20260813-170742.log",
+    "reference_checkpoint": "weights/pretrain/20260813/vericomp-128k/latest.pt",
+    "reference_updates": 24414,
+    "reference_world_size": 4,
+    "reference_parameters": 98469429,
+    "note": "The reference run was itself the root of the residual-skip chain; it has no init_from, so it is the from-scratch baseline."
+  },
+  "data": {
+    "fasta": "/gpfs_data/Projects/data/hg38/hg38.ml.fa",
+    "bed": "/gpfs_data/Projects/data/hg38/human-sequences.bed",
+    "note": "The historical run used /root/data/hg38/*; those files no longer exist. The gpfs_data copies are the same hg38 masked FASTA and BED."
+  },
+  "schedule": {
+    "total_updates": 30000,
+    "warmup_updates": 1000,
+    "lr": 0.0003,
+    "weight_decay": 0.01,
+    "max_grad_norm": 2.0,
+    "grad_accumulation": 1,
+    "eval_every": 500,
+    "save_every": 500,
+    "validation_samples": 300,
+    "seed": 17
+  },
+  "allocation": {
+    "allocation_mode": "uniform",
+    "strict_uncompressed_short": true,
+    "duplex_mode": "dual"
+  },
+  "lengths": [1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072],
+  "max_length": 131072,
+  "short_context_limit": 131072,
+  "per_rank_batch_sizes": {
+    "1024": 128,
+    "2048": 64,
+    "4096": 32,
+    "8192": 32,
+    "16384": 16,
+    "32768": 16,
+    "65536": 8,
+    "131072": 8
+  },
+  "model": {
+    "num_layers": 12
+  },
+  "runtime": {
+    "num_workers": 2,
+    "no_activation_checkpointing": true
+  },
+  "output_dir": "/gpfs_data/Projects/HelixPack/weights/pretrain/20261025/vericomp-uniform-30k-scratch"
+}
